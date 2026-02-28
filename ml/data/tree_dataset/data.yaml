@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['tree trunk']
+
+roboflow:
+  workspace: icws
+  project: tree-trunks-dataset
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/icws/tree-trunks-dataset/dataset/2

@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── measurements collection ───────────────────────────────
+    match /measurements/{docId} {
+
+      // Only the owner can read their own measurement
+      allow get: if request.auth != null
+                 && (resource == null || resource.data.userId == request.auth.uid);
+
+      // Only the owner can list their measurements
+      allow list: if request.auth != null
+                  && resource.data.userId == request.auth.uid;
+
+      // Authenticated users can create their own records
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+
+      // Owner can update / delete
+      allow update, delete: if request.auth != null
+                             && resource.data.userId == request.auth.uid;
+    }
+
+  }
+}

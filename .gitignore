@@ -1,0 +1,53 @@
+# ─── Environment variables (NEVER commit) ──────────────────────────────────
+.env
+*.env
+.env.local
+.env.production
+
+# ─── Firebase credentials ───────────────────────────────────────────────────
+*-adminsdk*.json
+firebase-adminsdk.json
+
+# ─── Python ─────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ─── Node / Frontend ────────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/.env
+
+# ─── ML Weights (too large for git – use DVC or cloud storage) ─────────────
+*.pt
+*.pth
+*.onnx
+*.tflite
+weights/
+
+# ─── Training Runs ──────────────────────────────────────────────────────────
+runs/
+outputs/
+wandb/
+
+# ─── IDE ────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+
+# ─── OS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Docker ─────────────────────────────────────────────────────────────────
+ssl/
+
+# ─── Logs ───────────────────────────────────────────────────────────────────
+*.log
+logs/

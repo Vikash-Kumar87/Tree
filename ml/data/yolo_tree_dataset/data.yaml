@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['trunk', 'trunktrack_idkeyframe']
+
+roboflow:
+  workspace: sp-oyksz
+  project: yolo-tree-dataset
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/sp-oyksz/yolo-tree-dataset/dataset/3
