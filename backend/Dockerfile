@@ -3,22 +3,21 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
-# System dependencies for OpenCV + Detectron2
+# System dependencies for OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    git \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# Install CPU-only torch first (smaller), then rest skipping detectron2
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir torch==2.2.1+cpu torchvision==0.17.1+cpu \
+        --index-url https://download.pytorch.org/whl/cpu && \
+    grep -v "detectron2\|torch==" requirements.txt | pip install --no-cache-dir -r /dev/stdin
 
 # ─── Stage 2: Runtime ────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
