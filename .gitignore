@@ -30,6 +30,8 @@ frontend/.env
 *.onnx
 *.tflite
 weights/
+# ─── Exception: custom tree-detection weights (small ~6 MB, needed on HF Spaces)
+!backend/weights/yolov8_tree.pt
 
 # ─── Training Runs ──────────────────────────────────────────────────────────
 runs/
