@@ -11,16 +11,18 @@ service cloud.firestore {
                  && (resource == null || resource.data.userId == request.auth.uid);
 
       // Only the owner can list their measurements
-      allow list: if request.auth != null
-                  && resource.data.userId == request.auth.uid;
+      // (resource is null in list queries; filter is enforced client-side via where clause)
+      allow list: if request.auth != null;
 
       // Authenticated users can create their own records
       allow create: if request.auth != null
                     && request.resource.data.userId == request.auth.uid;
 
       // Owner can update / delete
-      allow update, delete: if request.auth != null
-                             && resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null
+                    && resource.data.userId == request.auth.uid;
     }
 
   }

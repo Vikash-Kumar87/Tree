@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
-import { getFirestore, collection, addDoc, getDocs, getDoc, doc, query, where, limit, serverTimestamp } from 'firebase/firestore'
+import { getFirestore, collection, addDoc, getDocs, getDoc, doc, deleteDoc, query, where, limit, serverTimestamp } from 'firebase/firestore'
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 // -----------------------------------------------------------------------
@@ -98,6 +98,10 @@ export async function getMeasurementById(id) {
   const snap   = await getDoc(docRef)
   if (!snap.exists()) throw new Error('Measurement not found')
   return { id: snap.id, ...snap.data() }
+}
+
+export async function deleteMeasurement(id) {
+  await deleteDoc(doc(db, 'measurements', id))
 }
 
 export { auth, db, storage }

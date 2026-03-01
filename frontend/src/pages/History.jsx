@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { History as HistoryIcon, TreePine, Ruler, ChevronRight, Search, Leaf, Camera } from 'lucide-react'
-import { motion, useInView } from 'framer-motion'
+import { History as HistoryIcon, TreePine, Ruler, ChevronRight, Search, Leaf, Camera, Trash2 } from 'lucide-react'
+import { motion, useInView, AnimatePresence } from 'framer-motion'
 import { useRef } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getUserMeasurements } from '../services/firebase.js'
+import { getUserMeasurements, deleteMeasurement } from '../services/firebase.js'
 import LoadingSpinner from '../components/LoadingSpinner.jsx'
 import { formatDistanceToNow } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -29,6 +29,23 @@ export default function History() {
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
   const [sort, setSort]               = useState('newest') // newest|tallest|widest
+  const [deletingId, setDeletingId]   = useState(null)
+
+  const handleDelete = async (e, id) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm('Delete this measurement? This cannot be undone.')) return
+    setDeletingId(id)
+    try {
+      await deleteMeasurement(id)
+      setMeasurements(prev => prev.filter(m => m.id !== id))
+      toast.success('Measurement deleted')
+    } catch (err) {
+      toast.error('Delete failed: ' + (err?.message ?? err))
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   useEffect(() => {
     if (!user) return
@@ -192,6 +209,7 @@ export default function History() {
           variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
           className="space-y-3"
         >
+          <AnimatePresence initial={false}>
           {filtered.map((m, idx) => {
             const date = m.timestamp?.toDate
               ? formatDistanceToNow(m.timestamp.toDate(), { addSuffix: true })
@@ -203,11 +221,13 @@ export default function History() {
               <motion.div
                 key={m.id}
                 variants={{ hidden: { opacity: 0, x: -16 }, show: { opacity: 1, x: 0, transition: spring } }}
+                exit={{ opacity: 0, x: 40, transition: { duration: 0.2 } }}
                 whileHover={{ x: 4, boxShadow: '0 8px 28px rgba(124,58,237,0.12)' }}
+                className="relative"
               >
                 <Link
                   to={`/results/${m.id}`}
-                  className="card flex items-center gap-4 p-4 group"
+                  className="card flex items-center gap-4 p-4 group pr-14"
                 >
                   {/* Thumbnail */}
                   <motion.div
@@ -257,9 +277,24 @@ export default function History() {
                     </motion.div>
                   </div>
                 </Link>
+
+                {/* Delete button — outside Link so click doesn't navigate */}
+                <motion.button
+                  onClick={(e) => handleDelete(e, m.id)}
+                  disabled={deletingId === m.id}
+                  whileHover={{ scale: 1.12 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                  title="Delete measurement"
+                >
+                  {deletingId === m.id
+                    ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }} className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full" />
+                    : <Trash2 className="w-4 h-4" />}
+                </motion.button>
               </motion.div>
             )
           })}
+          </AnimatePresence>
         </motion.div>
       )}
     </div>
