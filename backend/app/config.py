@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     KEYPOINT_WEIGHTS:   str = "weights/hrnet_keypoint.pth"
 
     # ─── Inference ───────────────────────────────────────────────────────────
-    YOLO_CONFIDENCE_THRESHOLD:  float = 0.35   # lowered from 0.45 — custom model recall ~74%
+    YOLO_CONFIDENCE_THRESHOLD:  float = 0.50   # raised from 0.35 to cut false positives on non-tree images
     YOLO_IOU_THRESHOLD:         float = 0.45
     DEVICE:                     str   = "cpu"   # 'cpu' | 'cuda' | 'mps'
     MAX_IMAGE_SIZE_PX:          int   = 1280    # longest edge resize before inference

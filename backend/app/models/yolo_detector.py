@@ -144,10 +144,15 @@ class YOLODetector:
                 name    = self._model.names.get(cls_id, str(cls_id))
 
                 det = Detection(cls_id, name, conf, xyxy, xywh_px)
+
+                # Minimum area guard: tree bbox must cover ≥3% of image
+                # (eliminates tiny false-positive blobs on non-tree images)
+                min_tree_area = (w * h) * 0.03
+
                 if cls_id == TREE_CLASS_ID:
                     # Custom model: class 0 is always tree.
                     # COCO fallback: class 0 is 'person' — only accept if name matches tree keywords.
-                    if self._custom_model or name.lower() in _TREE_NAMES:
+                    if (self._custom_model or name.lower() in _TREE_NAMES) and det.area >= min_tree_area:
                         trees.append(det)
                 elif cls_id == ref_cls_id:
                     refs.append(det)

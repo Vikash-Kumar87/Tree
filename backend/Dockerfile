@@ -38,6 +38,7 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code and model weights
+# BUILD: 2026-03-01-v2 (strict tree-only validation + custom weights)
 COPY app/ ./app/
 COPY weights/ ./weights/
 
