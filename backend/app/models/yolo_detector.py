@@ -15,9 +15,15 @@ from typing import List, Optional
 
 import numpy as np
 import structlog
-from ultralytics import YOLO
 
 from app.config import settings
+
+try:
+    from ultralytics import YOLO
+    _YOLO_AVAILABLE = True
+except Exception:
+    YOLO = None  # type: ignore
+    _YOLO_AVAILABLE = False
 
 log = structlog.get_logger(__name__)
 
@@ -65,10 +71,13 @@ class YOLODetector:
     """Thin wrapper around YOLOv8 for tree and reference-object detection."""
 
     def __init__(self):
-        self._model: Optional[YOLO] = None
+        self._model = None
         self._custom_model: bool = False   # True only when custom tree weights loaded
 
     def load(self) -> None:
+        if not _YOLO_AVAILABLE:
+            log.warning("yolo.unavailable", msg="ultralytics not importable, YOLO disabled")
+            return
         weights = Path(settings.YOLO_WEIGHTS)
         if not weights.exists():
             log.warning("yolo.weights_missing", path=str(weights))

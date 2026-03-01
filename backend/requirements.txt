@@ -5,7 +5,7 @@ pydantic==2.6.3
 pydantic-settings==2.2.1
 
 # ─── AI / Computer Vision ──────────────────────────────────────────────────────
-ultralytics==8.1.28          # YOLOv8
+ultralytics>=8.3.0           # YOLOv8
 torch==2.2.1
 torchvision==0.17.1
 detectron2 @ git+https://github.com/facebookresearch/detectron2.git  # Mask R-CNN
