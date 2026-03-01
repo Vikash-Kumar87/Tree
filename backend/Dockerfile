@@ -39,7 +39,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY app/ ./app/
-COPY weights/ ./weights/
+RUN mkdir -p ./weights
 
 ENV PORT=7860
 ENV ENV=production
