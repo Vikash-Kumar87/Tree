@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # ─── General ────────────────────────────────────────────────────────────
     ENV:              str  = "development"
     SECRET_KEY:       str  = "change-me-in-production"
-    ALLOWED_ORIGINS:  List[str] = ["http://localhost:3000", "https://yourdomain.com"]
+    ALLOWED_ORIGINS:  List[str] = ["*"]
 
     # ─── Firebase Admin SDK ──────────────────────────────────────────────────
     FIREBASE_CREDENTIALS_PATH: str = "firebase-adminsdk.json"
