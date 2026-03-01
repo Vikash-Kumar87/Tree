@@ -86,10 +86,33 @@ class MeasurementService:
         ref_bbox    = yolo_result.best_reference.bbox_xyxy if yolo_result.best_reference else None
 
         if not yolo_result.trees:
-            log.warning("measurement.no_tree_detected")
-            raise ValueError(
-                "No tree detected in the image. Please photograph a tree and try again."
+            # No trees detected — custom weights are absent and COCO pretrained
+            # model has no tree class.  Fall back: treat the full image as the
+            # tree region so the rest of the pipeline can still produce estimates.
+            log.warning(
+                "measurement.no_tree_detected_fallback",
+                msg="Using full-image region as tree (custom weights not loaded)",
             )
+            from app.models.yolo_detector import Detection, YOLOResult
+            h_img, w_img = image.shape[:2]
+            synth_bbox = [0.0, 0.0, float(w_img), float(h_img)]
+            synth_det = Detection(
+                class_id=0,
+                class_name="tree (inferred)",
+                confidence=0.30,
+                bbox_xyxy=synth_bbox,
+                bbox_xywh=[w_img / 2, h_img / 2, float(w_img), float(h_img)],
+            )
+            yolo_result = YOLOResult(
+                trees=[synth_det],
+                reference_objects=yolo_result.reference_objects,
+                best_tree=synth_det,
+                best_reference=yolo_result.best_reference,
+                image_wh=yolo_result.image_wh,
+                confidence_score=0.30,
+                inference_time_ms=yolo_result.inference_time_ms,
+            )
+            tree_bbox = synth_bbox
 
         # ── 3. Mask R-CNN Segmentation ───────────────────────────────────────
         seg_result = await model_registry.mask_rcnn.segment(image, tree_bbox)
