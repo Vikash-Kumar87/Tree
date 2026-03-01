@@ -37,9 +37,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy application code
+# Copy application code and model weights
 COPY app/ ./app/
-RUN mkdir -p ./weights
+COPY weights/ ./weights/
 
 ENV PORT=7860
 ENV ENV=production
