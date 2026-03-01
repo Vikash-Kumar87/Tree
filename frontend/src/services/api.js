@@ -59,6 +59,30 @@ export async function analyzeTree(imageFile, referenceType, metadata, onProgress
 }
 
 /**
+ * Measure tree using 3-point user marks (no reference object needed).
+ * @param {File}   imageFile     – the tree photo
+ * @param {object} marks        – { base_y_frac, ref_y_frac, top_y_frac, base_x_frac }
+ * @param {number} userHeightM  – user's real height in metres
+ * @param {function} onProgress – (percent:number) => void
+ */
+export async function markMeasureTree(imageFile, marks, userHeightM, onProgress) {
+  const form = new FormData()
+  form.append('image', imageFile)
+  form.append('base_y_frac',   marks.base_y_frac.toFixed(6))
+  form.append('ref_y_frac',    marks.ref_y_frac.toFixed(6))
+  form.append('top_y_frac',    marks.top_y_frac.toFixed(6))
+  form.append('base_x_frac',   (marks.base_x_frac ?? 0.5).toFixed(6))
+  form.append('user_height_m', userHeightM.toFixed(2))
+
+  return api.post('/inference/mark-measure', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (evt) => {
+      if (onProgress && evt.total) onProgress(Math.round((evt.loaded / evt.total) * 100))
+    },
+  })
+}
+
+/**
  * Get a cached inference result by its job ID.
  */
 export const getInferenceResult = (jobId) =>

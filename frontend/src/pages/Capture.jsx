@@ -2,13 +2,14 @@ import React, { useRef, useState, useCallback } from 'react'
 import Webcam from 'react-webcam'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
-import { Camera, Upload, RefreshCw, Zap, Image, Info, ChevronDown, Sparkles, Layers, ArrowDown, ArrowUp, CheckCircle2 } from 'lucide-react'
+import { Camera, Upload, RefreshCw, Zap, Image, Info, ChevronDown, Sparkles, Layers, ArrowDown, ArrowUp, CheckCircle2, Ruler } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { analyzeTree } from '../services/api.js'
+import { analyzeTree, markMeasureTree } from '../services/api.js'
 import { saveMeasurement } from '../services/firebase.js'
 import LoadingSpinner from '../components/LoadingSpinner.jsx'
+import MarkingCanvas from '../components/MarkingCanvas.jsx'
 
 const spring = { type: 'spring', stiffness: 300, damping: 24 }
 
@@ -104,6 +105,11 @@ export default function Capture() {
   const [progress, setProgress]     = useState(0)
   const [tipOpen, setTipOpen]       = useState(false)
 
+  // Mark-mode (3-point height via user marks)
+  const [measureMode, setMeasureMode] = useState('reference') // 'reference' | 'marks'
+  const [marks, setMarks]             = useState(null)         // {base_y_frac,...}
+  const [userHeightCm, setUserHeightCm] = useState(170)        // user's real height
+
   // Tall-tree multi-shot state
   const [tallMode, setTallMode]     = useState(false)
   const [shotStep, setShotStep]     = useState(1)        // 1=base, 2=crown
@@ -116,6 +122,7 @@ export default function Capture() {
     setBottomShot(null)
     setShotStep(1)
     setStatus('idle')
+    setMarks(null)
   }, [])
 
   const handleCapture = useCallback(async () => {
@@ -174,6 +181,57 @@ export default function Capture() {
   // ─── Submit to backend ─────────────────────────────────────
   const handleAnalyse = async () => {
     if (!imageFile) { toast.error('No image selected'); return }
+
+    // ── Mark-mode: 3-point measurement ──────────────────────────────────
+    if (measureMode === 'marks') {
+      if (!marks) { toast.error('Please place all 3 marks on the tree first'); return }
+      try {
+        setStatus('uploading'); setProgress(0)
+        const result = await markMeasureTree(
+          imageFile,
+          marks,
+          userHeightCm / 100,
+          (pct) => setProgress(Math.min(pct, 90))
+        )
+        setProgress(100); setStatus('analysing')
+        let docId = null
+        if (user?.uid) {
+          try {
+            const raw = result.measurements ?? {}
+            const measurements = {
+              heightM:    raw.height_m    ?? 0,
+              diameterCm: raw.diameter_cm ?? 0,
+              biomassKg:  raw.biomass_kg  ?? 0,
+              carbonKg:   raw.carbon_kg   ?? 0,
+              co2Kg:      raw.co2_kg      ?? 0,
+            }
+            const imageUrl = await compressImage(capturedImage, 320)
+            docId = await saveMeasurement({
+              userId:           user.uid,
+              imageUrl,
+              referenceObject:  'manual-marks',
+              measurements,
+              confidence:       result.confidence,
+              modelVersions:    result.model_versions,
+              processingTimeMs: result.processing_time_ms,
+            })
+          } catch (saveErr) {
+            console.error('Firestore save failed:', saveErr)
+            toast.error('Could not save to history: ' + (saveErr?.message ?? saveErr))
+          }
+        }
+        setStatus('done')
+        toast.success('Measurement complete!')
+        if (docId) navigate(`/results/${docId}`)
+        else navigate('/results/preview', { state: { result, refType: 'manual-marks' } })
+      } catch (err) {
+        setStatus('idle')
+        toast.error(err.message || 'Measurement failed. Please try again.')
+      }
+      return
+    }
+
+    // ── Reference-mode: original flow ────────────────────────────────────
     try {
       // 1. Send image to backend for AI analysis (progress 0→90%)
       setStatus('uploading')
@@ -452,12 +510,84 @@ export default function Capture() {
         </AnimatePresence>
       </motion.div>
 
-      {/* ─── Reference Object Selector ────────────────── */}
+      {/* ─── Reference / Mark-Points Mode Toggle (shown after image captured) ── */}
+      <AnimatePresence>
+        {capturedImage && (
+          <motion.div
+            key="mode-toggle"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={spring}
+            className="mb-4"
+          >
+            <div className="flex rounded-2xl overflow-hidden border border-purple-200 bg-white/60 p-1 gap-1">
+              {[
+                { id: 'reference', icon: Sparkles, label: 'Reference Object', sub: 'A4 / Card / Phone' },
+                { id: 'marks',     icon: Ruler,    label: 'Mark Points',      sub: 'No reference needed' },
+              ].map(({ id, icon: Icon, label, sub }) => (
+                <motion.button
+                  key={id}
+                  type="button"
+                  onClick={() => { setMeasureMode(id); setMarks(null) }}
+                  whileTap={{ scale: 0.96 }}
+                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl text-xs font-semibold transition-all
+                    ${measureMode === id ? 'text-white shadow-md' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}
+                  style={measureMode === id ? { background: 'linear-gradient(90deg,#7c3aed,#ec4899)' } : {}}
+                >
+                  <span className="flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{label}</span>
+                  <span className={`text-[10px] ${measureMode === id ? 'text-white/70' : 'text-gray-400'}`}>{sub}</span>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Mark Points Canvas (shown when mark mode + image captured) ──── */}
+      <AnimatePresence>
+        {capturedImage && measureMode === 'marks' && (
+          <motion.div
+            key="marking-canvas"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={spring}
+            className="card p-4 mb-4"
+          >
+            <MarkingCanvas
+              imageSrc={capturedImage}
+              onMarksComplete={(m) => setMarks(m)}
+              onReset={() => setMarks(null)}
+            />
+            {/* User height input */}
+            <div className="mt-4 flex items-center gap-3">
+              <label className="text-sm font-semibold text-gray-700 flex-shrink-0 flex items-center gap-1.5">
+                <Ruler className="w-4 h-4 text-blue-500" /> Your Height
+              </label>
+              <div className="flex items-center gap-2 flex-1">
+                <input
+                  type="range" min={120} max={220} step={1}
+                  value={userHeightCm}
+                  onChange={e => setUserHeightCm(Number(e.target.value))}
+                  className="flex-1 accent-blue-500"
+                />
+                <span className="w-16 text-center text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
+                  {userHeightCm} cm
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Reference Object Selector (hidden when mark mode) ─────────── */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
+        animate={{ opacity: capturedImage && measureMode === 'marks' ? 0 : 1, y: 0, height: capturedImage && measureMode === 'marks' ? 0 : 'auto' }}
         transition={{ ...spring, delay: 0.2 }}
-        className="card p-4 mb-4"
+        className={`card p-4 mb-4 overflow-hidden ${capturedImage && measureMode === 'marks' ? 'pointer-events-none' : ''}`}
+        style={capturedImage && measureMode === 'marks' ? { marginBottom: 0, padding: 0 } : {}}
       >
         <p className="text-xs font-semibold text-purple-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5" /> Reference Object in Photo
@@ -583,9 +713,12 @@ export default function Capture() {
             <motion.button
               whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
               type="button"
-              onClick={handleAnalyse} disabled={isProcessing} className="btn-primary flex-1 py-4 text-base"
+              onClick={handleAnalyse}
+              disabled={isProcessing || (measureMode === 'marks' && !marks)}
+              className="btn-primary flex-1 py-4 text-base"
             >
-              <Zap className="w-5 h-5" /> Analyse Tree
+              <Zap className="w-5 h-5" />
+              {measureMode === 'marks' ? (marks ? 'Measure by Marks' : 'Place all 3 marks first') : 'Analyse Tree'}
             </motion.button>
           </>
         ) : null}

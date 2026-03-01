@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from app.api.deps import get_optional_user
 from app.schemas.measurement import ConfidenceOut, InferenceResponse, MeasurementsOut
 from app.services.measurement_service import MeasurementService
+from app.services.mark_measure_service import measure_by_marks
 
 router  = APIRouter()
 _svc    = MeasurementService()
@@ -95,3 +96,42 @@ async def get_result(
     if job_id not in _result_cache:
         raise HTTPException(status_code=404, detail="Result not found or expired")
     return _result_cache[job_id]
+
+
+@router.post(
+    "/mark-measure",
+    summary="Measure tree height via 3-point user marks (no reference object needed)",
+)
+async def mark_measure(
+    image:         UploadFile = File(...),
+    base_y_frac:   float      = Form(..., description="Normalised Y of tree base (0-1)"),
+    ref_y_frac:    float      = Form(..., description="Normalised Y of user eye-level (0-1)"),
+    top_y_frac:    float      = Form(..., description="Normalised Y of tree crown (0-1)"),
+    base_x_frac:   float      = Form(0.5, description="Normalised X of trunk centre (0-1)"),
+    user_height_m: float      = Form(1.70, description="User's real height in metres"),
+    current_user:  Optional[dict] = Depends(get_optional_user),
+):
+    if image.content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type: {image.content_type}",
+        )
+    raw = await image.read()
+    if len(raw) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="Image exceeds 20 MB limit")
+
+    try:
+        result = await measure_by_marks(
+            image_bytes=raw,
+            base_y_frac=base_y_frac,
+            ref_y_frac=ref_y_frac,
+            top_y_frac=top_y_frac,
+            base_x_frac=base_x_frac,
+            user_height_m=user_height_m,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Mark-measure failed: {e}")
+
+    return JSONResponse(content=result)
