@@ -48,6 +48,14 @@ async def measure_by_marks(
 
     h_px, w_px = img.shape[:2]
 
+    # ── YOLO tree validation (same guard as reference mode) ───────────────
+    yolo_result = await model_registry.yolo.detect(img, "a4")
+    if not yolo_result.trees:
+        log.warning("mark_measure.no_tree_detected")
+        raise ValueError(
+            "No tree detected in the image. Please photograph a tree and try again."
+        )
+
     # ── Validate mark order (y increases downward) ───────────────────────
     # base_y > ref_y > top_y  (ground is near bottom = high y value)
     if not (base_y_frac > ref_y_frac > top_y_frac):
