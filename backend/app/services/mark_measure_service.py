@@ -103,36 +103,57 @@ async def measure_by_marks(
 
 def _estimate_diameter(img, w_px, h_px, base_x_frac, base_y_frac, tree_height_m):
     """
-    Estimate trunk diameter by scanning a horizontal strip
-    near the base of the trunk for the brown/grey trunk pixels.
-    Falls back to allometric proportion if vision fails.
+    Estimate trunk diameter by scanning outward from the known trunk centre
+    (base_x_frac) and stopping when the pixel colour diverges from the trunk
+    colour at the centre.  This is device-resolution independent because we
+    measure in fractional image width then convert via pixels-per-metre.
     """
     try:
-        # Scan a 4px-tall strip at ~10% above base for trunk width
-        sample_y = int((base_y_frac - 0.05) * h_px)
-        sample_y = max(0, min(h_px - 1, sample_y))
+        # Sample a horizontal strip at ~15% above base (cleaner bark, less soil)
+        sample_y = int((base_y_frac - 0.15) * h_px)
+        sample_y = max(2, min(h_px - 3, sample_y))
+        cx       = int(base_x_frac * w_px)
 
-        strip = img[max(0, sample_y - 2): sample_y + 2, :, :]
+        # Average the strip over 5 rows for stability
+        strip = img[sample_y - 2: sample_y + 3, :, :]   # shape (5, w, 3)
         if strip.size == 0:
             raise ValueError("empty strip")
+        row = strip.mean(axis=0).astype(np.uint8)        # (w, 3) mean row
 
-        # Convert to HSV; trunk colours: low saturation browns/greys
-        hsv   = cv2.cvtColor(strip, cv2.COLOR_BGR2HSV)
-        # Mask: hue 5–30 (brown/tan), OR low-saturation grey
-        mask_brown = cv2.inRange(hsv, (5, 30,  30), (30, 200, 200))
-        mask_grey  = cv2.inRange(hsv, (0,  0,  30), (180, 60, 200))
-        mask = cv2.bitwise_or(mask_brown, mask_grey)
+        # Get reference colour at trunk centre
+        cx_safe   = max(0, min(w_px - 1, cx))
+        trunk_bgr = row[cx_safe].astype(float)
 
-        cols = np.any(mask > 0, axis=0)   # which columns have trunk pixels
-        if cols.sum() < 3:
-            raise ValueError("too few trunk pixels")
+        # Walk left from centre until colour diverges too much
+        threshold = 45   # Euclidean BGR distance
+        left_edge = cx_safe
+        for x in range(cx_safe, max(0, cx_safe - w_px // 2), -1):
+            diff = float(np.linalg.norm(row[x].astype(float) - trunk_bgr))
+            if diff > threshold:
+                left_edge = x + 1
+                break
 
-        trunk_px = int(cols.sum())
-        # pixels_per_m ≈ image_height_px / tree_height_m
-        ppm = h_px / tree_height_m   # pixels per metre
+        # Walk right from centre
+        right_edge = cx_safe
+        for x in range(cx_safe, min(w_px, cx_safe + w_px // 2)):
+            diff = float(np.linalg.norm(row[x].astype(float) - trunk_bgr))
+            if diff > threshold:
+                right_edge = x - 1
+                break
+
+        trunk_px = max(1, right_edge - left_edge)
+
+        # pixels_per_metre from image height and known tree height
+        ppm = h_px / tree_height_m
         diameter_cm = (trunk_px / ppm) * 100
-        diameter_cm = float(np.clip(diameter_cm, 2.0, 300.0))
+        diameter_cm = float(np.clip(diameter_cm, 2.0, 200.0))
+
+        # Sanity: if still absurdly large, use allometric fallback
+        if diameter_cm > tree_height_m * 100 * 0.3:   # trunk > 30% of height → nonsense
+            raise ValueError("unrealistic diameter, using fallback")
+
         return diameter_cm
+
     except Exception:
-        # Allometric fallback: DBH ≈ height/15 for tropical trees (rough estimate)
-        return float(np.clip(tree_height_m * 100 / 15, 5.0, 200.0))
+        # Allometric fallback: DBH ≈ height/15 for tropical trees
+        return float(np.clip(tree_height_m * 100 / 15, 5.0, 150.0))
